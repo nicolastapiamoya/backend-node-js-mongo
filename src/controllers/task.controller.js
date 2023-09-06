@@ -1,4 +1,7 @@
 import taskModel from "../models/task.model.js"
+//import FuzzySearch from 'fuzzy-search';
+
+import fuzzy from "fuzzy"
 
 export const getTasks = async (req, res) => {
     try {
@@ -20,6 +23,65 @@ export const getTasks = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 }
+
+export const searchTasks = async (req, res) => {
+    try {
+
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+
+        const startIndex = (page - 1) * limit;
+        const endIndex = page * limit;
+
+        const searchString = req.params.search.toLowerCase();
+        const tasksSearch = await taskModel.find({}).populate('user');
+
+        if (!tasksSearch) return res.status(400).json({ message: "Tasks not found" });
+/*
+        const searcher = new FuzzySearch(tasksSearch, ['title', 'description'], {
+            sort: true, caseSensitive: true
+        });
+
+        const result = searcher.search(searchString);
+
+        */
+
+        const resultados = []
+
+        tasksSearch.forEach((documento) => {
+            const tituloMinusculas = documento.title.toLowerCase();
+            const puntuacion = fuzzy.match(searchString, tituloMinusculas);
+
+            
+            console.log(puntuacion)
+            const umbralPuntuacion = 20;
+
+            if (puntuacion != null && puntuacion.score >= umbralPuntuacion) {
+                resultados.push({
+                    documento
+                });
+            }
+        });
+
+        const paginatedData = resultados.slice(startIndex, endIndex);
+        const tasksInfo = {
+            page: page,
+            count: resultados.length,
+            limit: limit,
+            tasks: paginatedData
+        }
+        res.json({
+            status: 200,
+            message: "Success",
+            payload: tasksInfo
+        })
+    } catch (error) {
+        console.log(error)
+        res.status(500).json({ message: error.message });
+    }
+}
+
+
 
 export const createTask = async (req, res) => {
     try {
